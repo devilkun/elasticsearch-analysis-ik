@@ -2,6 +2,8 @@ IK Analysis for Elasticsearch and OpenSearch
 ==================================
 
 ![](./assets/banner.png)
+[![Test](https://github.com/infinilabs/analysis-ik/actions/workflows/test.yml/badge.svg)](https://github.com/infinilabs/analysis-ik/actions/workflows/test.yml)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 
 The IK Analysis plugin integrates Lucene IK analyzer, and support customized dictionary.  It supports major versions of Elasticsearch and OpenSearch. Maintained and supported with ❤️ by [INFINI Labs](https://infinilabs.com).
 
@@ -9,24 +11,32 @@ The plugin comprises analyzer: `ik_smart` , `ik_max_word`, and tokenizer: `ik_sm
 
 # How to Install
 
-You can download the packaged plugins from here: `https://release.infinilabs.com/`, 
+### 🚀 **Get the Packaged Plugins**
 
-or you can use the `plugin` cli to install the plugin like this:
+You can download the packaged plugins from here:  
 
-For Elasticsearch
+**[https://release.infinilabs.com/](https://release.infinilabs.com/)**
 
+---
+
+### 🛠️ **Install via CLI**
+
+Alternatively, you can use the `plugin` CLI to install the plugin. Here's how:
+
+#### For Elasticsearch:
+```bash
+bin/elasticsearch-plugin install https://get.infini.cloud/elasticsearch/analysis-ik/9.1.4
 ```
-bin/elasticsearch-plugin install https://get.infini.cloud/elasticsearch/analysis-ik/8.4.1
-```
 
-For OpenSearch
-
-```
+#### For OpenSearch:
+```bash
 bin/opensearch-plugin install https://get.infini.cloud/opensearch/analysis-ik/2.12.0
 ```
 
-Tips: replace your own version number related to your elasticsearch or opensearch.
+---
 
+### ⚠️ **Tip**  
+Make sure to replace the version number with the one that matches your Elasticsearch or OpenSearch version.
 
 # Getting Started
 
@@ -145,7 +155,7 @@ Result
 
 # Dictionary Configuration
 
-Config file `IKAnalyzer.cfg.xml` can be located at `{conf}/analysis-ik/config/IKAnalyzer.cfg.xml`
+Config file `IKAnalyzer.cfg.xml` can be located at `{conf}/analysis-ik/IKAnalyzer.cfg.xml`
 or `{plugins}/elasticsearch-analysis-ik-*/config/IKAnalyzer.cfg.xml`
 
 ```xml

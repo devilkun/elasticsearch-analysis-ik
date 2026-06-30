@@ -31,6 +31,11 @@ import java.util.TreeSet;
  * IK分词歧义裁决器
  */
 class IKArbitrator {
+	private static final int LONG_CN_WORD_LENGTH_THRESHOLD = 10;
+	private static final int LONG_CN_WORD_COUNT_THRESHOLD = 5;
+	private static final int TOTAL_LEXEME_COUNT_THRESHOLD = 50;
+	private static final int DENSE_CROSS_PATH_SIZE_THRESHOLD = 20;
+	private static final int DENSE_OVERLAP_RATIO_THRESHOLD = 4;
 
 	IKArbitrator(){
 		
@@ -55,8 +60,7 @@ class IKArbitrator {
 					context.addLexemePath(crossPath);
 				}else{
 					//对当前的crossPath进行歧义处理
-					QuickSortSet.Cell headCell = crossPath.getHead();
-					LexemePath judgeResult = this.judge(headCell, crossPath.getPathLength());
+					LexemePath judgeResult = this.judge(crossPath);
 					//输出歧义处理结果judgeResult
 					context.addLexemePath(judgeResult);
 				}
@@ -76,20 +80,108 @@ class IKArbitrator {
 			context.addLexemePath(crossPath);
 		}else{
 			//对当前的crossPath进行歧义处理
-			QuickSortSet.Cell headCell = crossPath.getHead();
-			LexemePath judgeResult = this.judge(headCell, crossPath.getPathLength());
+			LexemePath judgeResult = this.judge(crossPath);
 			//输出歧义处理结果judgeResult
 			context.addLexemePath(judgeResult);
 		}
 	}
 	
 	/**
+	 * 为过于复杂的交叉路径构造低成本兜底路径。
+	 * 该逻辑是ik_smart歧义裁决的性能护栏，避免在高密度crossPath上进行昂贵的回溯裁决。
+	 * @param crossPath 当前待裁决的交叉词元路径
+	 * @return 如果路径复杂度超过阈值则返回兜底路径，否则返回null
+	 */
+	private LexemePath tryBuildFallbackPathForComplexCrossPath(LexemePath crossPath) {
+		if (crossPath == null || crossPath.isEmpty()) {
+			return null;
+		}
+
+		if (!this.shouldFallbackForComplexCrossPath(crossPath)) {
+			return null;
+		}
+
+		return this.buildFallbackPath(crossPath);
+	}
+
+	/**
+	 * 判断当前交叉路径是否已经复杂到需要跳过正常回溯裁决。
+	 */
+	private boolean shouldFallbackForComplexCrossPath(LexemePath crossPath) {
+		if (crossPath.size() > TOTAL_LEXEME_COUNT_THRESHOLD) {
+			return true;
+		}
+
+		int longCnWordCount = 0;
+		long totalLexemeLength = 0;
+		QuickSortSet.Cell current = crossPath.getHead();
+		while (current != null && current.getLexeme() != null) {
+			Lexeme lexeme = current.getLexeme();
+
+			totalLexemeLength += lexeme.getLength();
+
+			if (lexeme.getLexemeType() == Lexeme.TYPE_CNWORD
+					&& lexeme.getLength() > LONG_CN_WORD_LENGTH_THRESHOLD) {
+				longCnWordCount++;
+			}
+			current = current.getNext();
+		}
+
+		int pathLength = crossPath.getPathEnd() - crossPath.getPathBegin();
+		if (pathLength <= 0) {
+			return false;
+		}
+
+		return longCnWordCount > LONG_CN_WORD_COUNT_THRESHOLD
+				&& crossPath.size() >= DENSE_CROSS_PATH_SIZE_THRESHOLD
+				&& totalLexemeLength >= (long) pathLength * DENSE_OVERLAP_RATIO_THRESHOLD;
+	}
+
+	/**
+	 * 构造低成本兜底路径。保留首词，并将其后的覆盖区间合成为一个词元。
+	 */
+	private LexemePath buildFallbackPath(LexemePath crossPath) {
+		Lexeme firstLexeme = crossPath.peekFirst();
+		if (firstLexeme == null) {
+			return null;
+		}
+
+		LexemePath fallbackPath = new LexemePath();
+		if (!fallbackPath.addNotCrossLexeme(firstLexeme)) {
+			return null;
+		}
+
+		int remainStart = firstLexeme.getBegin() + firstLexeme.getLength();
+		int remainLength = crossPath.getPathEnd() - remainStart;
+
+		if (remainLength > 0) {
+			Lexeme remainLexeme = new Lexeme(
+					firstLexeme.getOffset(),
+					remainStart,
+					remainLength,
+					Lexeme.TYPE_CNWORD);
+			if (!fallbackPath.addNotCrossLexeme(remainLexeme)) {
+				return null;
+			}
+		}
+
+		return fallbackPath;
+	}
+
+	/**
 	 * 歧义识别
-	 * @param lexemeCell 歧义路径链表头
-	 * @param fullTextLength 歧义路径文本长度
+	 * @param crossPath 歧义路径
 	 * @return
 	 */
-	private LexemePath judge(QuickSortSet.Cell lexemeCell , int fullTextLength){
+	private LexemePath judge(LexemePath crossPath){
+		// 首先判断当前crossPath是否过于复杂，如果是则直接返回低成本兜底路径
+		LexemePath fallbackPath = this.tryBuildFallbackPathForComplexCrossPath(crossPath);
+		if (fallbackPath != null) {
+			return fallbackPath;
+		}
+
+		QuickSortSet.Cell lexemeCell = crossPath.getHead();
+		
 		//候选路径集合
 		TreeSet<LexemePath> pathOptions = new TreeSet<LexemePath>();
 		//候选结果路径
